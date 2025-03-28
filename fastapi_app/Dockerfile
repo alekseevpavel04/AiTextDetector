@@ -1,5 +1,5 @@
 # Start with CUDA supported Python image
-FROM pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime
+FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
 
 # Set environment variable to prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
@@ -12,6 +12,7 @@ RUN apt-get update && \
     build-essential \
     python3-dev \
     curl \
+    git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -23,6 +24,9 @@ COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Install generated-text-detector from GitHub
+RUN pip install git+https://github.com/superannotateai/generated_text_detector.git@v1.1.0
 
 # Create and set permissions for model cache directory
 RUN mkdir -p /root/.cache/huggingface && \
