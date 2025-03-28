@@ -25,9 +25,6 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install generated-text-detector from GitHub
-RUN pip install git+https://github.com/superannotateai/generated_text_detector.git@v1.1.0
-
 # Create and set permissions for model cache directory
 RUN mkdir -p /root/.cache/huggingface && \
     chmod -R 777 /root/.cache/huggingface

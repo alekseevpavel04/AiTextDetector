@@ -5,3 +5,5 @@ transformers==4.35.0
 python-docx==0.8.11
 python-multipart==0.0.6
 accelerate==0.23.0
+torch>=2.0.0
+sentencepiece>=0.1.99

@@ -65,7 +65,7 @@ async def send_welcome(message: types.Message):
         "You can send me:\n"
         "- A Word document (.docx) to analyze\n"
         "- Or use /text to analyze text directly\n\n"
-        "I'll provide you with a detailed analysis showing the AI generation probability for each sentence."
+        "I'll provide you with a detailed analysis showing the AI generation probability for each paragraph."
     )
     await DetectorStates.waiting_for_file.set()
 
@@ -78,7 +78,7 @@ async def send_help(message: types.Message):
         "1. Send a Word document (.docx) to analyze\n"
         "2. Or use /text command to enter text directly\n"
         "3. Wait while I analyze the content\n"
-        "4. Receive a detailed report showing AI-generated probability for each sentence\n\n"
+        "4. Receive a detailed report showing AI-generated probability for each paragraph\n\n"
         "Commands:\n"
         "• /start - Start the bot and reset state\n"
         "• /text - Analyze custom text\n"
@@ -92,7 +92,7 @@ async def send_help(message: types.Message):
 async def request_text_input(message: types.Message):
     await message.reply(
         "Please send me the text you want to analyze for AI-generated content.\n\n"
-        "For best results, send a paragraph or more of text."
+        "For best results, send multiple paragraphs of text."
     )
     await DetectorStates.waiting_for_text.set()
 
@@ -143,7 +143,8 @@ async def process_document(message: types.Message, state: FSMContext):
 
         # Prepare the file for multipart upload
         files = {'file': (
-        document.file_name, downloaded_file, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')}
+            document.file_name, downloaded_file,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document')}
 
         # Make request to the API
         response = requests.post(FASTAPI_URL, files=files, timeout=300)
@@ -163,6 +164,9 @@ async def process_document(message: types.Message, state: FSMContext):
             # Create a dataframe for better formatting
             df = pd.DataFrame(results)
 
+            # Rename column from paragraph to text for backwards compatibility
+            df.rename(columns={'paragraph': 'text'}, inplace=True)
+
             # Generate CSV file
             output = io.StringIO()
             df.to_csv(output, index=False)
@@ -171,17 +175,17 @@ async def process_document(message: types.Message, state: FSMContext):
             # Create text-based summary
             summary_text = "🔍 **AI Text Detection Results**\n\n"
 
-            # Count high-probability sentences (>0.8)
+            # Count high-probability paragraphs (>0.8)
             high_prob_count = sum(1 for r in results if r['probability'] > 0.8)
             medium_prob_count = sum(1 for r in results if 0.5 < r['probability'] <= 0.8)
             low_prob_count = sum(1 for r in results if r['probability'] <= 0.5)
-            total_sentences = len(results)
+            total_paragraphs = len(results)
 
             summary_text += f"**Document Analysis Summary:**\n"
-            summary_text += f"- Total sentences analyzed: {total_sentences}\n"
-            summary_text += f"- High probability AI-generated (>80%): {high_prob_count} sentences ({round(high_prob_count / total_sentences * 100, 1)}%)\n"
-            summary_text += f"- Medium probability (50-80%): {medium_prob_count} sentences ({round(medium_prob_count / total_sentences * 100, 1)}%)\n"
-            summary_text += f"- Low probability (<50%): {low_prob_count} sentences ({round(low_prob_count / total_sentences * 100, 1)}%)\n\n"
+            summary_text += f"- Total paragraphs analyzed: {total_paragraphs}\n"
+            summary_text += f"- High probability AI-generated (>80%): {high_prob_count} paragraphs ({round(high_prob_count / total_paragraphs * 100, 1)}%)\n"
+            summary_text += f"- Medium probability (50-80%): {medium_prob_count} paragraphs ({round(medium_prob_count / total_paragraphs * 100, 1)}%)\n"
+            summary_text += f"- Low probability (<50%): {low_prob_count} paragraphs ({round(low_prob_count / total_paragraphs * 100, 1)}%)\n\n"
 
             summary_text += "Detailed results are available in the attached CSV file."
 
@@ -192,7 +196,7 @@ async def process_document(message: types.Message, state: FSMContext):
             # Send CSV file with detailed results
             csv_file = InputFile(io.BytesIO(output.getvalue().encode()),
                                  filename=f"{document.file_name.split('.')[0]}_ai_analysis.csv")
-            await message.reply_document(csv_file, caption="Detailed AI detection results for each sentence")
+            await message.reply_document(csv_file, caption="Detailed AI detection results for each paragraph")
 
         elif response.status_code == 503:
             # Special handling for the case when the model is still loading
@@ -261,13 +265,16 @@ async def process_text(message: types.Message, state: FSMContext):
             if not results:
                 await bot.delete_message(chat_id=processing_msg.chat.id, message_id=processing_msg.message_id)
                 await message.reply(
-                    "⚠️ No analyzable sentences found in your text. "
+                    "⚠️ No analyzable paragraphs found in your text. "
                     "Please check your input and try again."
                 )
                 return
 
             # Create a dataframe
             df = pd.DataFrame(results)
+
+            # Rename column from paragraph to text for backwards compatibility
+            df.rename(columns={'paragraph': 'text'}, inplace=True)
 
             # Generate CSV file
             output = io.StringIO()
@@ -277,24 +284,24 @@ async def process_text(message: types.Message, state: FSMContext):
             # Create text-based summary
             summary_text = "🔍 **AI Text Detection Results**\n\n"
 
-            # Count high-probability sentences (>0.8)
+            # Count high-probability paragraphs (>0.8)
             high_prob_count = sum(1 for r in results if r['probability'] > 0.8)
             medium_prob_count = sum(1 for r in results if 0.5 < r['probability'] <= 0.8)
             low_prob_count = sum(1 for r in results if r['probability'] <= 0.5)
-            total_sentences = len(results)
+            total_paragraphs = len(results)
 
             summary_text += f"**Text Analysis Summary:**\n"
-            summary_text += f"- Total sentences analyzed: {total_sentences}\n"
-            summary_text += f"- High probability AI-generated (>80%): {high_prob_count} sentences ({round(high_prob_count / total_sentences * 100, 1)}%)\n"
-            summary_text += f"- Medium probability (50-80%): {medium_prob_count} sentences ({round(medium_prob_count / total_sentences * 100, 1)}%)\n"
-            summary_text += f"- Low probability (<50%): {low_prob_count} sentences ({round(low_prob_count / total_sentences * 100, 1)}%)\n\n"
+            summary_text += f"- Total paragraphs analyzed: {total_paragraphs}\n"
+            summary_text += f"- High probability AI-generated (>80%): {high_prob_count} paragraphs ({round(high_prob_count / total_paragraphs * 100, 1)}%)\n"
+            summary_text += f"- Medium probability (50-80%): {medium_prob_count} paragraphs ({round(medium_prob_count / total_paragraphs * 100, 1)}%)\n"
+            summary_text += f"- Low probability (<50%): {low_prob_count} paragraphs ({round(low_prob_count / total_paragraphs * 100, 1)}%)\n\n"
 
-            # Add sample of analyzed sentences with high probability
+            # Add sample of analyzed paragraphs with high probability
             if high_prob_count > 0:
-                summary_text += "**Sample High-Probability Sentences:**\n"
-                high_prob_samples = [r for r in results if r['probability'] > 0.8][:3]  # Take up to 3 samples
+                summary_text += "**Sample High-Probability Paragraphs:**\n"
+                high_prob_samples = [r for r in results if r['probability'] > 0.8][:2]  # Take up to 2 samples
                 for i, sample in enumerate(high_prob_samples, 1):
-                    summary_text += f"{i}. \"{sample['sentence'][:100]}...\" - {round(sample['probability'] * 100, 1)}%\n"
+                    summary_text += f"{i}. \"{sample['paragraph'][:100]}...\" - {round(sample['probability'] * 100, 1)}%\n"
                 summary_text += "\n"
 
             summary_text += "Detailed results are available in the attached CSV file."
@@ -305,7 +312,7 @@ async def process_text(message: types.Message, state: FSMContext):
 
             # Send CSV file with detailed results
             csv_file = InputFile(io.BytesIO(output.getvalue().encode()), filename="text_ai_analysis.csv")
-            await message.reply_document(csv_file, caption="Detailed AI detection results for each sentence")
+            await message.reply_document(csv_file, caption="Detailed AI detection results for each paragraph")
 
             # Reset state to waiting for file
             await DetectorStates.waiting_for_file.set()
