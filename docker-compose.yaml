@@ -1,0 +1,74 @@
+version: '3'
+
+services:
+  telegram_bot:
+    build:
+      context: ./telegram_bot
+    ports:
+      - "8443:8000"
+    depends_on:
+      fastapi_app:
+        condition: service_healthy
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+    restart: always
+    networks:
+      - recipe_network
+    volumes:
+      - ./telegram_bot:/app
+    container_name: recipe_telegram_bot
+
+  fastapi_app:
+    build:
+      context: ./fastapi_app
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    restart: always
+    networks:
+      - recipe_network
+    volumes:
+      - ./fastapi_app:/app
+      - huggingface_cache:/root/.cache/huggingface
+    container_name: recipe_fastapi_app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1 # alternatively, use `count: all` for all GPUs
+              capabilities: [ gpu ]
+
+  benchmark:
+    build:
+      context: ./benchmark
+      dockerfile: Dockerfile
+    depends_on:
+      fastapi_app:
+        condition: service_healthy
+    networks:
+      - recipe_network
+    volumes:
+      - ./benchmark:/app
+      - huggingface_cache:/root/.cache/huggingface
+    container_name: recipe_benchmark
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+networks:
+  recipe_network:
+    driver: bridge
+
+volumes:
+  huggingface_cache:
+    driver: local

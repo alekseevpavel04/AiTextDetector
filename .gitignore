@@ -1,0 +1,7 @@
+venv
+.env
+.idea
+benchmark/benchmark_report.*
+benchmark/benchmark_results.*
+benchmark/*.txt
+presentation/
